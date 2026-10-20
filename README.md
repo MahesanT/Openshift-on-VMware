@@ -566,3 +566,10 @@ This is destructive. Confirm the target cluster before running it. Do not manual
 - [OpenShift Source-to-Image](https://github.com/openshift/source-to-image)
 
 **Result:** A working three-node compact OpenShift-on-vSphere cluster, healthy control-plane nodes and operators, a functioning local DNS integration, a VMware CSI storage class, and a reachable NGINX deployment via an OpenShift Route.
+
+## Architecture design documents
+
+- [High-Level Design (HLD)](docs/HLD_OpenShift_on_VMware.md) — platform architecture, component roles, network/data flows, security and availability.
+- [Low-Level Design (LLD)](docs/LLD_OpenShift_on_VMware.md) — VM and IP inventory, DNS, storage, OpenShift settings, application deployment and verification commands.
+
+These document the **actual three-node compact home lab**. The six-node AD DNS/DHCP design is described separately as an **enterprise extension**, not as an implemented topology.
