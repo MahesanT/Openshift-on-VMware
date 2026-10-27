@@ -2,6 +2,8 @@
 
 Hands-on deployment of **Red Hat OpenShift Container Platform on VMware vSphere**, covering automated cluster provisioning, CoreOS, DNS, vSphere CSI storage, the internal image registry, and NGINX application deployment and troubleshooting.
 
+> **Public portfolio note:** Hostnames, IP addresses, network names and infrastructure labels in this repository are intentionally anonymized. Documentation uses RFC 5737 TEST-NET address space and the reserved `.example` domain; these values do not represent the underlying environment.
+
 > **What was actually built:** A **three-node compact OpenShift cluster**, with three RHCOS control-plane nodes also scheduling application workloads, on VMware vSphere. The cluster operators reported **OpenShift 4.22.18** (although I originally browsed the 4.20 installation materials). The completed installer run took **39 minutes 43 seconds**. A **six-node, Active Directory DNS/DHCP enterprise variant** is described at the end as a possible extension; it was not the topology deployed in this lab.
 >
 > This is a **non-production learning environment**. Addresses and names are lab examples. Never publish pull secrets, vCenter passwords, kubeconfigs, kubeadmin passwords, or installer state files.
@@ -11,14 +13,14 @@ Hands-on deployment of **Red Hat OpenShift Container Platform on VMware vSphere*
 ~~~text
                          Windows / Ubuntu clients
                                   |
-                          Home LAN 192.168.8.0/24
+                          Home LAN 192.0.2.0/24
                                   |
                 +-----------------+------------------+
                 |                                    |
-     Ubuntu nfs-server                         VMware vCenter
+     Ubuntu infra-dns01                         VMware vCenter
      BIND9 DNS: .214                          vSphere / ESXi 8
      External DNS forwarding                         |
-                |                         HomeLab-Cluster / datastore1
+                |                         LAB-CLUSTER / datastore1
                 |                                    |
                 +---- API VIP: .60 -------------------+
                 +---- Ingress VIP: .61 ---------------+
@@ -42,17 +44,17 @@ Hands-on deployment of **Red Hat OpenShift Container Platform on VMware vSphere*
 | OpenShift release | **4.22.18**, confirmed by cluster operators |
 | Kubernetes | **v1.35.8**, confirmed by node output |
 | Node topology | **3 control-plane nodes, 0 dedicated workers**, masters schedulable |
-| Node names | ocp-76lch-master-0, ocp-76lch-master-1, ocp-76lch-master-2 |
+| Node names | ocp-lab-master-0, ocp-lab-master-1, ocp-lab-master-2 |
 | Planned per-node VM resources | 4 vCPU, 16 GiB RAM, 100 GB OS disk |
 | Virtual disk provision | **Thin** after correcting a thick-provisioned attempt |
 | Storage class | thin-csi (default), csi.vsphere.vmware.com |
-| Cluster name / base domain | ocp / home.arpa |
-| DNS | BIND9 on Ubuntu, **192.168.8.214** |
-| API / Ingress VIPs | **192.168.8.60 / 192.168.8.61** |
-| Temporary bootstrap IP | 192.168.8.62 |
-| Control-plane IPs | 192.168.8.63, .64, .65 |
-| Gateway | 192.168.8.1 |
-| vSphere network | VM Network |
+| Cluster name / base domain | ocp / lab.example |
+| DNS | BIND9 on Ubuntu, **192.0.2.53** |
+| API / Ingress VIPs | **192.0.2.60 / 192.0.2.61** |
+| Temporary bootstrap IP | 192.0.2.62 |
+| Control-plane IPs | 192.0.2.63, .64, .65 |
+| Gateway | 192.0.2.1 |
+| vSphere network | LAB-NET |
 | Application project | demo |
 | Application | NGINX unprivileged, verified with HTTP 200 (nginx/1.30.6) |
 
@@ -121,11 +123,11 @@ Required example records:
 
 | Record | Type | Answer |
 | --- | --- | --- |
-| api.ocp.home.arpa | A | 192.168.8.60 |
-| api-int.ocp.home.arpa | A | 192.168.8.60 |
-| *.apps.ocp.home.arpa | Wildcard A | 192.168.8.61 |
+| api.ocp.lab.example | A | 192.0.2.60 |
+| api-int.ocp.lab.example | A | 192.0.2.60 |
+| *.apps.ocp.lab.example | Wildcard A | 192.0.2.61 |
 
-The home router DNS did not support creating custom records, so we installed **BIND9 on an existing Ubuntu server**, at 192.168.8.214. This server's IP must be stable and reachable by every node and client that uses the cluster.
+The home router DNS did not support creating custom records, so we installed **BIND9 on an existing Ubuntu server**, at 192.0.2.53. This server's IP must be stable and reachable by every node and client that uses the cluster.
 
 ~~~bash
 sudo apt update
@@ -136,31 +138,31 @@ sudo systemctl status named --no-pager
 Example file **/etc/bind/named.conf.local**:
 
 ~~~conf
-zone "ocp.home.arpa" {
+zone "ocp.lab.example" {
     type master;
-    file "/etc/bind/db.ocp.home.arpa";
+    file "/etc/bind/db.ocp.lab.example";
 };
 ~~~
 
-Example **/etc/bind/db.ocp.home.arpa**:
+Example **/etc/bind/db.ocp.lab.example**:
 
 ~~~dns
 $TTL 300
-@ IN SOA ns1.ocp.home.arpa. admin.ocp.home.arpa. (
+@ IN SOA ns1.ocp.lab.example. admin.ocp.lab.example. (
   2026101901 3600 900 604800 300
 )
-@       IN NS ns1.ocp.home.arpa.
-ns1     IN A  192.168.8.214
-api     IN A  192.168.8.60
-api-int IN A  192.168.8.60
-*.apps  IN A  192.168.8.61
+@       IN NS ns1.ocp.lab.example.
+ns1     IN A  192.0.2.53
+api     IN A  192.0.2.60
+api-int IN A  192.0.2.60
+*.apps  IN A  192.0.2.61
 ~~~
 
 In **/etc/bind/named.conf.options**, set suitable upstream DNS forwarding inside the existing options block:
 
 ~~~conf
 forwarders {
-    192.168.8.1;
+    192.0.2.1;
     1.1.1.1;
 };
 forward only;
@@ -170,23 +172,23 @@ Validate and restart:
 
 ~~~bash
 sudo named-checkconf
-sudo named-checkzone ocp.home.arpa /etc/bind/db.ocp.home.arpa
+sudo named-checkzone ocp.lab.example /etc/bind/db.ocp.lab.example
 sudo systemctl restart named
-dig @192.168.8.214 api.ocp.home.arpa +short
-dig @192.168.8.214 api-int.ocp.home.arpa +short
-dig @192.168.8.214 sample.apps.ocp.home.arpa +short
-dig @192.168.8.214 rhcos.mirror.openshift.com +short
+dig @192.0.2.53 api.ocp.lab.example +short
+dig @192.0.2.53 api-int.ocp.lab.example +short
+dig @192.0.2.53 sample.apps.ocp.lab.example +short
+dig @192.0.2.53 rhcos.mirror.openshift.com +short
 ~~~
 
 We fixed a real installation failure where internal lookups worked but external RHCOS mirror resolution failed. After enabling external forwarding, Ubuntu's systemd-resolved still returned **No appropriate name servers or networks for name found**. For the active interface (ens33), the working **temporary** remedy was:
 
 ~~~bash
-sudo resolvectl dns ens33 192.168.8.214
+sudo resolvectl dns ens33 192.0.2.53
 sudo resolvectl domain ens33 '~.'
 sudo resolvectl default-route ens33 yes
 sudo resolvectl flush-caches
 resolvectl query rhcos.mirror.openshift.com
-resolvectl query api.ocp.home.arpa
+resolvectl query api.ocp.lab.example
 ~~~
 
 These resolvectl changes may disappear on reboot; persist them through the Ubuntu network manager/Netplan before relying on the server long term. Avoid manually editing /etc/resolv.conf when systemd-resolved manages it.
@@ -202,7 +204,7 @@ mkdir -p ~/ocp-install
 ./openshift-install create install-config --dir ~/ocp-install
 ~~~
 
-Select **vSphere**, your vCenter, the datacenter, compute cluster, datastore, VM network, and the API/Ingress VIPs. Enter the Red Hat pull secret interactively; **never publish the resulting file**. In this lab the selected VIPs were **192.168.8.60** and **192.168.8.61**, base domain **home.arpa**, and cluster name **ocp**.
+Select **vSphere**, your vCenter, the datacenter, compute cluster, datastore, VM network, and the API/Ingress VIPs. Enter the Red Hat pull secret interactively; **never publish the resulting file**. In this lab the selected VIPs were **192.0.2.60** and **192.0.2.61**, base domain **lab.example**, and cluster name **ocp**.
 
 Important sanitized excerpts from our configuration:
 
@@ -224,30 +226,30 @@ platform:
   vsphere:
     diskType: thin
     apiVIPs:
-    - 192.168.8.60
+    - 192.0.2.60
     ingressVIPs:
-    - 192.168.8.61
+    - 192.0.2.61
     hosts:
     - role: bootstrap
       networkDevice:
-        ipAddrs: [192.168.8.62/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.62/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.63/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.63/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.64/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.64/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.65/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.65/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
 ~~~
 
 **This excerpt is NOT a complete install-config.yaml.** The real file includes installer-generated fields (including platform failure domains, vCenters, networking, metadata, pull secret and other settings). Keep those existing fields when applying changes.
@@ -315,9 +317,9 @@ oc get events -A --sort-by='.lastTimestamp' | tail -25
 Observed final node status:
 
 ~~~text
-ocp-76lch-master-0   Ready   control-plane,master,worker   v1.35.8
-ocp-76lch-master-1   Ready   control-plane,master,worker   v1.35.8
-ocp-76lch-master-2   Ready   control-plane,master,worker   v1.35.8
+ocp-lab-master-0   Ready   control-plane,master,worker   v1.35.8
+ocp-lab-master-1   Ready   control-plane,master,worker   v1.35.8
+ocp-lab-master-2   Ready   control-plane,master,worker   v1.35.8
 ~~~
 
 Console, ingress and authentication cluster operators were **Available=True, Progressing=False, Degraded=False**, with version **4.22.18**.
@@ -325,13 +327,13 @@ Console, ingress and authentication cluster operators were **Available=True, Pro
 The lab console used:
 
 ~~~text
-https://console-openshift-console.apps.ocp.home.arpa
+https://console-openshift-console.apps.ocp.lab.example
 ~~~
 
 Fresh lab installations may use an ingress certificate that isn't trusted by client machines. A temporary **connectivity-only test** is:
 
 ~~~bash
-curl -kI https://console-openshift-console.apps.ocp.home.arpa/
+curl -kI https://console-openshift-console.apps.ocp.lab.example/
 ~~~
 
 We verified **HTTP 200 OK**. In production, use an appropriate trusted ingress certificate. The kubeadmin password and kubeconfig are secrets: do not upload them.
@@ -343,11 +345,11 @@ Linux could resolve the OpenShift application hostname through BIND9, but Window
 Test:
 
 ~~~powershell
-nslookup console-openshift-console.apps.ocp.home.arpa 192.168.8.214
-nslookup someapp-demo.apps.ocp.home.arpa 192.168.8.214
+nslookup console-openshift-console.apps.ocp.lab.example 192.0.2.53
+nslookup someapp-demo.apps.ocp.lab.example 192.0.2.53
 ~~~
 
-For a permanent solution, configure client DNS to reach the authoritative records (for example the lab BIND9 server or a managed forwarding rule). For a short test, the Windows hosts file can map **individual** Route hostnames to **192.168.8.61**; hosts files do **not** implement DNS wildcards.
+For a permanent solution, configure client DNS to reach the authoritative records (for example the lab BIND9 server or a managed forwarding rule). For a short test, the Windows hosts file can map **individual** Route hostnames to **192.0.2.61**; hosts files do **not** implement DNS wildcards.
 
 ## 8. vSphere CSI storage and registry
 
@@ -357,7 +359,7 @@ Our cluster exposed:
 thin-csi (default)  csi.vsphere.vmware.com  Delete  WaitForFirstConsumer
 ~~~
 
-The StorageClass referenced the vSphere storage policy **openshift-storage-policy-ocp-76lch**. Always inspect the vCenter storage policy to confirm how it handles provisioning before requesting large volumes.
+The StorageClass referenced the vSphere storage policy **openshift-storage-policy-ocp-lab**. Always inspect the vCenter storage policy to confirm how it handles provisioning before requesting large volumes.
 
 Useful commands:
 
