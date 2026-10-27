@@ -497,6 +497,36 @@ oc describe build nginxtest-1 -n demo
 oc get configs.imageregistry.operator.openshift.io cluster -o yaml
 ~~~
 
+## Sock Shop microservices deployment
+
+As a second application exercise, I deployed the **Sock Shop microservices demo** into the `sock-shop` namespace using OpenShift-adapted manifests.
+
+The final lab state had **13 Deployments running**:
+
+`carts`, `carts-db`, `catalogue`, `catalogue-db`, `front-end`, `orders`, `orders-db`, `payment`, `queue-master`, `rabbitmq`, `shipping`, `user`, and `user-db`.
+
+Several legacy services were not immediately compatible with OpenShift's restricted security model:
+
+- Java/Spring services that expected privileged port 80 were moved to **8080** using `SERVER_PORT=8080`, with Services updated to target 8080.
+- Legacy Go binaries in `catalogue`, `payment`, and `user` carried `cap_net_bind_service` file capabilities. Under restricted OpenShift execution this resulted in `Operation not permitted`.
+- For the lab, the binaries were copied to `/tmp` to drop the file capabilities and then started on port 8080. In production, rebuilding compliant images would be the preferred approach.
+- The `front-end` Service was exposed through an OpenShift Route.
+
+Useful validation:
+
+~~~bash
+oc get deployments -n sock-shop
+oc get pods -n sock-shop
+oc get svc -n sock-shop
+oc get route -n sock-shop
+
+# Create the front-end Route if one does not already exist
+oc expose service/front-end -n sock-shop
+oc get route front-end -n sock-shop
+~~~
+
+**Result:** all 13 Sock Shop deployments were confirmed running after the compatibility fixes. A complete browse/cart/checkout transaction was not captured, so this repository does not claim end-to-end functional checkout validation.
+
 ## 10. Troubleshooting summary
 
 | Symptom | Cause found / investigation | Resolution |
