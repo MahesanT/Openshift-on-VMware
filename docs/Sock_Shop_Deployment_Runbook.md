@@ -1,7 +1,7 @@
 # Sock Shop on Red Hat OpenShift — Deployment and Troubleshooting Runbook
 
 > **Environment:** Self-managed Red Hat OpenShift 4.22.18 on VMware vSphere, compact three-node cluster (three schedulable control-plane nodes), OVN-Kubernetes.  
-> **Namespace:** \`sock-shop\`  
+> **Namespace:** `sock-shop`  
 > **Application:** Sock Shop / Weaveworks microservices demo, adapted for OpenShift  
 > **Outcome recorded:** **13 of 13 Deployments running** after remediating legacy image compatibility problems.  
 > **Evidence boundary:** This is a write-up of the commands and outcomes observed during the lab. **Front-end HTTP status, browser shopping workflow, order submission and transaction tracing were not captured as completed tests.** Re-run the validation section to document those results.
@@ -37,19 +37,19 @@ The **13 Deployments** were:
 
 | Deployment | Role | Final recorded status | Resolution / notes |
 | --- | --- | --- | --- |
-| \`front-end\` | Web UI | Running | No startup fix required |
-| \`carts\` | Shopping cart API (Spring) | Running | \`SERVER_PORT=8080\`; Service port 80 → targetPort 8080 |
-| \`carts-db\` | MongoDB | Running | No startup fix required |
-| \`catalogue\` | Product catalogue API (Go) | Running | Copy binary without file capabilities; run \`-port=8080\`; update Service |
-| \`catalogue-db\` | MySQL | Running | No startup fix required |
-| \`orders\` | Orders API (Spring) | Running | \`SERVER_PORT=8080\`; update Service |
-| \`orders-db\` | MongoDB | Running | No startup fix required |
-| \`payment\` | Payments API (Go) | Running | Copy binary without file capabilities; run \`-port=8080\`; update Service |
-| \`queue-master\` | Queue processor (Spring) | Running | \`SERVER_PORT=8080\`; update Service |
-| \`rabbitmq\` | Message broker | Running | No startup fix required |
-| \`shipping\` | Shipping API (Spring) | Running | \`SERVER_PORT=8080\`; update Service |
-| \`user\` | User API (Go) | Running | Copy binary without file capabilities; run \`-port=8080\`; update Service |
-| \`user-db\` | MongoDB | Running | No startup fix required |
+| `front-end` | Web UI | Running | No startup fix required |
+| `carts` | Shopping cart API (Spring) | Running | `SERVER_PORT=8080`; Service port 80 → targetPort 8080 |
+| `carts-db` | MongoDB | Running | No startup fix required |
+| `catalogue` | Product catalogue API (Go) | Running | Copy binary without file capabilities; run `-port=8080`; update Service |
+| `catalogue-db` | MySQL | Running | No startup fix required |
+| `orders` | Orders API (Spring) | Running | `SERVER_PORT=8080`; update Service |
+| `orders-db` | MongoDB | Running | No startup fix required |
+| `payment` | Payments API (Go) | Running | Copy binary without file capabilities; run `-port=8080`; update Service |
+| `queue-master` | Queue processor (Spring) | Running | `SERVER_PORT=8080`; update Service |
+| `rabbitmq` | Message broker | Running | No startup fix required |
+| `shipping` | Shipping API (Spring) | Running | `SERVER_PORT=8080`; update Service |
+| `user` | User API (Go) | Running | Copy binary without file capabilities; run `-port=8080`; update Service |
+| `user-db` | MongoDB | Running | No startup fix required |
 
 The upstream manifest defines these 13 Deployments, their Services and a **front-end Route**. It uses legacy container images, therefore compatibility updates were needed for OpenShift's restricted security settings.
 
@@ -57,7 +57,7 @@ The upstream manifest defines these 13 Deployments, their Services and a **front
 
 ## 2. Preconditions
 
-Use a working \`oc\` session with permission to create resources in the demo project. We installed onto the existing OpenShift cluster; **no separate Kubernetes installation was needed**.
+Use a working `oc` session with permission to create resources in the demo project. We installed onto the existing OpenShift cluster; **no separate Kubernetes installation was needed**.
 
 ~~~bash
 oc whoami
@@ -85,7 +85,7 @@ grep -nE '^kind: (Deployment|Service|Route)' complete-demo.yaml
 
 ## 3. Deploy Sock Shop
 
-The initial installation used the repository's OpenShift-adapted \`complete-demo.yaml\`.
+The initial installation used the repository's OpenShift-adapted `complete-demo.yaml`.
 
 ~~~bash
 oc apply -n sock-shop -f complete-demo.yaml
@@ -95,7 +95,7 @@ oc get services -n sock-shop
 oc get routes -n sock-shop
 ~~~
 
-**Observed first rollout:** databases, \`rabbitmq\`, and the \`front-end\` were healthy; seven application Deployments — \`carts\`, \`catalogue\`, \`orders\`, \`payment\`, \`queue-master\`, \`shipping\`, and \`user\` — had startup failures. We did not solve this by changing the entire cluster's SCC policy.
+**Observed first rollout:** databases, `rabbitmq`, and the `front-end` were healthy; seven application Deployments — `carts`, `catalogue`, `orders`, `payment`, `queue-master`, `shipping`, and `user` — had startup failures. We did not solve this by changing the entire cluster's SCC policy.
 
 ### How we isolated failures
 
@@ -110,7 +110,7 @@ oc get events -n sock-shop --sort-by='.lastTimestamp' | tail -30
 oc get deployments -n sock-shop
 ~~~
 
-Caution: \`oc get pods --field-selector=status.phase!=Running\` does **not** reliably find every \`CrashLoopBackOff\`, because that status describes a **container waiting reason** while the Pod phase can be \`Running\`.
+Caution: `oc get pods --field-selector=status.phase!=Running` does **not** reliably find every `CrashLoopBackOff`, because that status describes a **container waiting reason** while the Pod phase can be `Running`.
 
 ## 4. Fix 1 — Java/Spring services binding to port 80
 
@@ -131,7 +131,7 @@ for app in carts orders queue-master shipping; do
 done
 ~~~
 
-The applications were checked individually, and \`carts\` and \`orders\` recovered first, followed by \`queue-master\` and \`shipping\`.
+The applications were checked individually, and `carts` and `orders` recovered first, followed by `queue-master` and `shipping`.
 
 Verify each new rollout:
 
@@ -145,7 +145,7 @@ done
 
 ## 5. Fix 2 — Legacy Go executable capability failure
 
-The remaining services — \`catalogue\`, \`payment\`, and \`user\` — reported:
+The remaining services — `catalogue`, `payment`, and `user` — reported:
 
 ~~~text
 exec container process /app: Operation not permitted
@@ -156,7 +156,7 @@ These errors occurred **before the application successfully started**, so they w
 
 ### Root cause investigation — catalogue
 
-We confirmed \`catalogue\` ran with OpenShift SCC \`restricted-v2\` and \`RuntimeDefault\` seccomp. Its executable had mode \`-rwxr-xr-x\`, so ordinary Unix execute bits were not the issue.
+We confirmed `catalogue` ran with OpenShift SCC `restricted-v2` and `RuntimeDefault` seccomp. Its executable had mode `-rwxr-xr-x`, so ordinary Unix execute bits were not the issue.
 
 ~~~bash
 oc get pod <CATALOGUE_POD> -n sock-shop \
@@ -181,7 +181,7 @@ CapBnd: 0000000000000000
 NoNewPrivs: 1
 ~~~
 
-The image had \`cap_net_bind_service+ep\` as a **file capability**, but the restricted container could not acquire that capability on execution. A normal copy to \`/tmp\` removed that file capability from the copied binary, and the binary then started.
+The image had `cap_net_bind_service+ep` as a **file capability**, but the restricted container could not acquire that capability on execution. A normal copy to `/tmp` removed that file capability from the copied binary, and the binary then started.
 
 ~~~bash
 oc debug deployment/catalogue -n sock-shop -- \
@@ -194,9 +194,9 @@ Observed:
 transport=HTTP port=8080
 ~~~
 
-We checked the [catalogue source](https://github.com/microservices-demo/catalogue/blob/master/cmd/cataloguesvc/main.go): its Go program uses the **\`-port\` CLI flag**, defaulting to 80. Tests with \`PORT=8080\` and \`HTTP_PORT=8080\` did **not** change the port.
+We checked the [catalogue source](https://github.com/microservices-demo/catalogue/blob/master/cmd/cataloguesvc/main.go): its Go program uses the **`-port` CLI flag**, defaulting to 80. Tests with `PORT=8080` and `HTTP_PORT=8080` did **not** change the port.
 
-The same binary-capability finding was verified for \`payment\` and \`user\`, and the temporary debug tests confirmed the command line \`-port=8080\` started their binaries.
+The same binary-capability finding was verified for `payment` and `user`, and the temporary debug tests confirmed the command line `-port=8080` started their binaries.
 
 ### Lab workaround — Deployments and Services
 
@@ -229,22 +229,22 @@ oc patch svc user -n sock-shop --type=merge \
 
 After applying these updates, **all 13 Deployments were reported running**.
 
-> **Lab-only workaround:** These startup-copy commands assume the image contains \`/bin/sh\`, \`/tmp\` is writable, and that executing the copied file is allowed. A maintainable image should be **rebuilt without file capabilities**, configured to listen on port 8080, tested under the cluster's default non-root/SCC settings, and pinned to a reproducible digest. Do not weaken the entire namespace or grant broad \`anyuid\`/\`privileged\` SCC permissions just to run old images.
+> **Lab-only workaround:** These startup-copy commands assume the image contains `/bin/sh`, `/tmp` is writable, and that executing the copied file is allowed. A maintainable image should be **rebuilt without file capabilities**, configured to listen on port 8080, tested under the cluster's default non-root/SCC settings, and pinned to a reproducible digest. Do not weaken the entire namespace or grant broad `anyuid`/`privileged` SCC permissions just to run old images.
 
 ### Unsuccessful diagnostic attempt — seccomp
 
-We briefly tested an \`Unconfined\` seccomp profile on \`catalogue\`. The cluster rejected it under \`restricted-v2\`, reporting:
+We briefly tested an `Unconfined` seccomp profile on `catalogue`. The cluster rejected it under `restricted-v2`, reporting:
 
 ~~~text
 unconfined is not an allowed seccomp profile
 Valid values are [runtime/default]
 ~~~
 
-We **restored \`RuntimeDefault\`** and resolved the root cause without requiring relaxed seccomp.
+We **restored `RuntimeDefault`** and resolved the root cause without requiring relaxed seccomp.
 
 ## 6. Application exposure through an OpenShift Route
 
-The original \`complete-demo.yaml\` includes a **Route** pointing at the \`front-end\` Service. After applying the manifest, **check before creating another Route**:
+The original `complete-demo.yaml` includes a **Route** pointing at the `front-end` Service. After applying the manifest, **check before creating another Route**:
 
 ~~~bash
 oc get svc front-end -n sock-shop
@@ -277,14 +277,14 @@ No hard-coded lab ingress IP or Route hostname appears in this document.
 
 | Test | Command / evidence | Status recorded in lab |
 | --- | --- | --- |
-| Cluster reachability | \`oc whoami\`; \`oc get nodes\` | Cluster and CLI previously working |
-| All Deployments available | \`oc get deployments -n sock-shop\` | **Confirmed 13/13 Running** by user |
+| Cluster reachability | `oc whoami`; `oc get nodes` | Cluster and CLI previously working |
+| All Deployments available | `oc get deployments -n sock-shop` | **Confirmed 13/13 Running** by user |
 | Java service recovery | New revisions of carts, orders, queue-master, shipping | **Confirmed Running** |
 | Go service recovery | New revisions of catalogue, payment, user | **Confirmed Running** |
-| Ports | \`SERVER_PORT=8080\` or \`-port=8080\`; Service targetPort 8080 | **Configured and recovered** |
-| Go file-capability cause | \`getcap\` and copied-binary tests | **Observed** |
-| Front-end Route configuration | \`oc get route front-end -n sock-shop\` | Route included in upstream manifest; post-fix output **not captured** |
-| Front-end HTTP 200 | \`curl -I\` to the Route | **Not captured** for Sock Shop |
+| Ports | `SERVER_PORT=8080` or `-port=8080`; Service targetPort 8080 | **Configured and recovered** |
+| Go file-capability cause | `getcap` and copied-binary tests | **Observed** |
+| Front-end Route configuration | `oc get route front-end -n sock-shop` | Route included in upstream manifest; post-fix output **not captured** |
+| Front-end HTTP 200 | `curl -I` to the Route | **Not captured** for Sock Shop |
 | Catalogue/cart/user functional APIs | In-cluster curl or browser | **Not captured** |
 | Place test order / checkout | Browser / trace / logs | **Not captured** |
 
@@ -322,19 +322,19 @@ oc logs deployment/front-end -n sock-shop --tail=50
 oc logs deployment/catalogue -n sock-shop --tail=50
 ~~~
 
-**Interpretation:** \`Running\` and \`Ready\` show that workloads are available, but do **not** prove that product browsing, checkout and order processing work. For an actual end-to-end functional sign-off, open the front-end Route in a browser, browse the catalogue, add items to the cart, create a **test-only** order, and collect correlated logs or tracing results. Record outcomes and remove test data where appropriate.
+**Interpretation:** `Running` and `Ready` show that workloads are available, but do **not** prove that product browsing, checkout and order processing work. For an actual end-to-end functional sign-off, open the front-end Route in a browser, browse the catalogue, add items to the cart, create a **test-only** order, and collect correlated logs or tracing results. Record outcomes and remove test data where appropriate.
 
 ### Optional evidence to add later
 
 - Sanitized screenshot of the 13 healthy Deployments.
-- Sanitized \`oc get pods -n sock-shop -o wide\` output.
+- Sanitized `oc get pods -n sock-shop -o wide` output.
 - Redacted front-end Route YAML/HTTP response.
 - Screenshots of a working Sock Shop homepage/catalogue/cart after functional testing.
 - Source-controlled revised manifests or container rebuilds, once the temporary runtime copy workaround is replaced.
 
 ## 8. Reproducibility and production considerations
 
-**The upstream \`complete-demo.yaml\` alone is not enough to reproduce the final working deployment.** The fixes above were applied live using \`oc set env\` and \`oc patch\`. If you reapply the upstream manifest after deployment, it may overwrite those changes.
+**The upstream `complete-demo.yaml` alone is not enough to reproduce the final working deployment.** The fixes above were applied live using `oc set env` and `oc patch`. If you reapply the upstream manifest after deployment, it may overwrite those changes.
 
 A clean repeatable delivery would maintain a **sanitized overlay or edited copy** of the original manifests (for example with Kustomize), plus rebuilt unprivileged images and GitOps/CI validation. Do not run the original manifests with hard-coded demo credentials in a production cluster.
 
@@ -343,11 +343,11 @@ Other considerations: pin maintained image versions/digests, define requests/lim
 ## 9. References
 
 - [Sock Shop OpenShift-adapted deployment manifest](https://github.com/mosuke5/microservices-demo-openshift/blob/master/complete-demo.yaml)
-- [Original catalogue source: \`-port\` flag](https://github.com/microservices-demo/catalogue/blob/master/cmd/cataloguesvc/main.go)
+- [Original catalogue source: `-port` flag](https://github.com/microservices-demo/catalogue/blob/master/cmd/cataloguesvc/main.go)
 - [OpenShift-on-vSphere HLD](HLD_OpenShift_on_VMware.md)
 - [OpenShift-on-vSphere LLD](LLD_OpenShift_on_VMware.md)
 - [Repository README](../README.md)
 
 ---
 
-**Summary:** A **13-Deployment distributed application** was deployed to the \`sock-shop\` namespace on the VMware-hosted OpenShift cluster. Seven old application containers initially failed; four Java/Spring apps were fixed by moving to port 8080 and three Go apps by removing conflicting executable file capabilities at startup and binding to 8080. Deployment availability was confirmed; end-to-end checkout remains to be tested and documented.
+**Summary:** A **13-Deployment distributed application** was deployed to the `sock-shop` namespace on the VMware-hosted OpenShift cluster. Seven old application containers initially failed; four Java/Spring apps were fixed by moving to port 8080 and three Go apps by removing conflicting executable file capabilities at startup and binding to 8080. Deployment availability was confirmed; end-to-end checkout remains to be tested and documented.
