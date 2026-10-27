@@ -1,9 +1,11 @@
 # High-Level Design (HLD)
 ## Red Hat OpenShift on VMware vSphere — Compact Three-Node Lab
 
+> **Public portfolio note:** Hostnames, IP addresses, network names and infrastructure labels in this repository are intentionally anonymized. Documentation uses RFC 5737 TEST-NET address space and the reserved `.example` domain; these values do not represent the underlying environment.
+
 **Document status:** As-built lab design, with proposed enterprise extensions clearly separated  
 **Version:** 1.0 | **Date:** 21 October 2026  
-**Environment:** Home lab | **Cluster:** `ocp.home.arpa`  
+**Environment:** Home lab | **Cluster:** `ocp.lab.example`  
 **Audience:** Platform engineers, virtualization engineers, SREs, architecture and interview reviewers
 
 ## 1. Executive summary
@@ -33,14 +35,14 @@ flowchart TB
     W[Windows browser]
     U[Ubuntu installer and oc CLI]
   end
-  D[BIND9 DNS\n192.168.8.214]
-  V[vCenter 192.168.8.221\nvSphere / ESXi 8]
-  API[OpenShift API VIP\n192.168.8.60:6443]
-  ING[OpenShift Ingress VIP\n192.168.8.61:80/443]
-  subgraph Cluster[OpenShift ocp.home.arpa — three RHCOS VMs on one ESXi host]
-    M0[master-0\n192.168.8.63\ncontrol-plane + worker]
-    M1[master-1\n192.168.8.64\ncontrol-plane + worker]
-    M2[master-2\n192.168.8.65\ncontrol-plane + worker]
+  D[BIND9 DNS\n192.0.2.53]
+  V[vCenter 192.0.2.10\nvSphere / ESXi 8]
+  API[OpenShift API VIP\n192.0.2.60:6443]
+  ING[OpenShift Ingress VIP\n192.0.2.61:80/443]
+  subgraph Cluster[OpenShift ocp.lab.example — three RHCOS VMs on one ESXi host]
+    M0[master-0\n192.0.2.63\ncontrol-plane + worker]
+    M1[master-1\n192.0.2.64\ncontrol-plane + worker]
+    M2[master-2\n192.0.2.65\ncontrol-plane + worker]
     POD[OVN-Kubernetes pod networking\nServices and workloads]
     CSI[vSphere CSI\nthin-csi StorageClass]
   end
@@ -66,14 +68,14 @@ flowchart TB
 
 | Layer | As-built design | Rationale / limitation |
 |---|---|---|
-| Hypervisor | VMware ESXi 8 under vCenter, datacenter `Homelab-DC`, cluster `HomeLab-Cluster` | Reuses the home-lab platform |
+| Hypervisor | VMware ESXi 8 under vCenter, datacenter `LAB-DC`, cluster `LAB-CLUSTER` | Reuses the home-lab platform |
 | Physical availability | One available ESXi physical host for the OpenShift VMs | A host outage affects the whole OpenShift cluster |
 | Nodes | 3 × RHCOS master VMs, schedulable for workloads | Compact installation; no dedicated workers |
 | Provisioning | vSphere installer-provisioned infrastructure (IPI) | Automatic VM/bootstrapping and cluster configuration |
-| Virtual network | `VM Network`, `192.168.8.0/24` | Existing home LAN |
-| DNS | Ubuntu BIND9 on `192.168.8.214` | Authoritative cluster records and external forwarding |
-| Control-plane access | API VIP `192.168.8.60` | Consistent API endpoint |
-| App access | Ingress VIP `192.168.8.61` | Wildcard OpenShift Routes |
+| Virtual network | `LAB-NET`, `192.0.2.0/24` | Existing home LAN |
+| DNS | Ubuntu BIND9 on `192.0.2.53` | Authoritative cluster records and external forwarding |
+| Control-plane access | API VIP `192.0.2.60` | Consistent API endpoint |
+| App access | Ingress VIP `192.0.2.61` | Wildcard OpenShift Routes |
 | Pod network | OVN-Kubernetes | CNI observed in actual Pod annotations |
 | CSI | VMware vSphere CSI, default `thin-csi` | Kubernetes PVC integration with vSphere storage policies |
 | Storage | VMFS datastore `datastore1 (1)` with thin virtual disks | Avoids exhaustion encountered with thick provisioning |
