@@ -499,6 +499,8 @@ oc get configs.imageregistry.operator.openshift.io cluster -o yaml
 
 ## Sock Shop microservices deployment
 
+**[Full Sock Shop deployment and validation runbook](docs/Sock_Shop_Deployment_Runbook.md)** — step-by-step installation, issues found, port and executable-capability fixes, and verification evidence.
+
 As a second application exercise, I deployed the **Sock Shop microservices demo** into the `sock-shop` namespace using OpenShift-adapted manifests.
 
 The final lab state had **13 Deployments running**:
