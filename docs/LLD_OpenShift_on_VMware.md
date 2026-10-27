@@ -315,6 +315,8 @@ The original standard `nginx` image failed writing `/var/cache/nginx/client_temp
 
 ## 8. Sock Shop: deployed resource inventory
 
+**Detailed implementation:** [Sock Shop deployment and verification runbook](Sock_Shop_Deployment_Runbook.md).
+
 Namespace: `sock-shop`. The application was deployed from the [OpenShift-adapted Sock Shop repository](https://github.com/mosuke5/microservices-demo-openshift) (`complete-demo.yaml`). The running result was confirmed by the user after fixes, but no end-to-end transaction trace has been recorded.
 
 | Deployment | Function | Outcome | Fix, if applied |
