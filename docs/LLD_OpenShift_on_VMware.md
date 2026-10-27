@@ -1,6 +1,8 @@
 # Low-Level Design (LLD)
 ## OpenShift on VMware vSphere — As-Built Implementation and Configuration
 
+> **Public portfolio note:** Hostnames, IP addresses, network names and infrastructure labels in this repository are intentionally anonymized. Documentation uses RFC 5737 TEST-NET address space and the reserved `.example` domain; these values do not represent the underlying environment.
+
 **Document status:** As-built lab and validation guide  
 **Version:** 1.0 | **Date:** 21 October 2026  
 **Scope:** Three-node compact OpenShift installation (not the conceptual six-node enterprise extension)
@@ -9,29 +11,29 @@
 
 | Item | Configured / observed |
 |---|---|
-| vCenter | `192.168.8.221` |
-| vSphere datacenter | `Homelab-DC` |
-| vSphere compute cluster | `HomeLab-Cluster` |
+| vCenter | `192.0.2.10` |
+| vSphere datacenter | `LAB-DC` |
+| vSphere compute cluster | `LAB-CLUSTER` |
 | Datastore | `datastore1 (1)` |
-| Port group | `VM Network` |
-| Management/application VLAN subnet | `192.168.8.0/24` |
-| Default gateway | `192.168.8.1` |
-| DNS resolver | `192.168.8.214` (Ubuntu BIND9) |
-| DNS/installer VM | `nfs-server` with `ens33=192.168.8.214/24` and `ens34=10.10.10.10/24` |
-| Base domain | `home.arpa` |
-| Cluster | `ocp.home.arpa` |
-| API VIP | `192.168.8.60` |
-| Ingress VIP | `192.168.8.61` |
-| Bootstrap (ephemeral) | `192.168.8.62` |
-| Control-plane/master 0 | `192.168.8.63` |
-| Control-plane/master 1 | `192.168.8.64` |
-| Control-plane/master 2 | `192.168.8.65` |
+| Port group | `LAB-NET` |
+| Management/application VLAN subnet | `192.0.2.0/24` |
+| Default gateway | `192.0.2.1` |
+| DNS resolver | `192.0.2.53` (Ubuntu BIND9) |
+| DNS/installer VM | `infra-dns01` with `ens33=192.0.2.53/24` and `ens34=198.51.100.10/24` |
+| Base domain | `lab.example` |
+| Cluster | `ocp.lab.example` |
+| API VIP | `192.0.2.60` |
+| Ingress VIP | `192.0.2.61` |
+| Bootstrap (ephemeral) | `192.0.2.62` |
+| Control-plane/master 0 | `192.0.2.63` |
+| Control-plane/master 1 | `192.0.2.64` |
+| Control-plane/master 2 | `192.0.2.65` |
 | Dedicated worker nodes | **0** |
 | RHCOS master VM sizing target | **4 vCPU, 16 GiB RAM, 100 GB OS disk** (verify against vCenter actual) |
 | OpenShift observed | **4.22.18**, Kubernetes **v1.35.8** |
 | Storage driver | `csi.vsphere.vmware.com` |
 | StorageClass | `thin-csi` (default), `WaitForFirstConsumer` |
-| CSI vSphere storage policy | `openshift-storage-policy-ocp-76lch` |
+| CSI vSphere storage policy | `openshift-storage-policy-ocp-lab` |
 | Pod network | OVN-Kubernetes (pod IPs in 10.128.x–10.130.x ranges observed, complete CIDR not recorded) |
 | Cluster service CIDR | Not recorded; examples of service ClusterIPs in 172.30.x.x range only |
 | Infrastructure-specific VIP implementation | Installer-managed; verify actual resources prior to formal handover |
@@ -40,54 +42,54 @@
 
 ## 2. DNS configuration
 
-DNS zone: `ocp.home.arpa` on BIND9 `192.168.8.214`.
+DNS zone: `ocp.lab.example` on BIND9 `192.0.2.53`.
 
 | FQDN | Type | Target | Role |
 |---|---|---|---|
-| `api.ocp.home.arpa` | A | `192.168.8.60` | External Kubernetes API |
-| `api-int.ocp.home.arpa` | A | `192.168.8.60` | Internal API |
-| `*.apps.ocp.home.arpa` | Wildcard A | `192.168.8.61` | OpenShift ingress Routes |
-| `console-openshift-console.apps.ocp.home.arpa` | Wildcard resolution | `192.168.8.61` | Console |
-| `oauth-openshift.apps.ocp.home.arpa` | Wildcard resolution | `192.168.8.61` | Login |
+| `api.ocp.lab.example` | A | `192.0.2.60` | External Kubernetes API |
+| `api-int.ocp.lab.example` | A | `192.0.2.60` | Internal API |
+| `*.apps.ocp.lab.example` | Wildcard A | `192.0.2.61` | OpenShift ingress Routes |
+| `console-openshift-console.apps.ocp.lab.example` | Wildcard resolution | `192.0.2.61` | Console |
+| `oauth-openshift.apps.ocp.lab.example` | Wildcard resolution | `192.0.2.61` | Login |
 
 BIND9 example `/etc/bind/named.conf.local`:
 
 ```conf
-zone "ocp.home.arpa" {
+zone "ocp.lab.example" {
   type master;
-  file "/etc/bind/db.ocp.home.arpa";
+  file "/etc/bind/db.ocp.lab.example";
 };
 ```
 
-Zone example `/etc/bind/db.ocp.home.arpa`:
+Zone example `/etc/bind/db.ocp.lab.example`:
 
 ```dns
 $TTL 300
-@ IN SOA ns1.ocp.home.arpa. admin.ocp.home.arpa. (
+@ IN SOA ns1.ocp.lab.example. admin.ocp.lab.example. (
   2026101901 3600 900 604800 300
 )
-@       IN NS ns1.ocp.home.arpa.
-ns1     IN A 192.168.8.214
-api     IN A 192.168.8.60
-api-int IN A 192.168.8.60
-*.apps  IN A 192.168.8.61
+@       IN NS ns1.ocp.lab.example.
+ns1     IN A 192.0.2.53
+api     IN A 192.0.2.60
+api-int IN A 192.0.2.60
+*.apps  IN A 192.0.2.61
 ```
 
-Upstream recursion/forwarding was configured to `192.168.8.1` and `1.1.1.1` (`forward only`). Validate your BIND9 ACLs and firewall if reused.
+Upstream recursion/forwarding was configured to `192.0.2.1` and `1.1.1.1` (`forward only`). Validate your BIND9 ACLs and firewall if reused.
 
 ```bash
 sudo named-checkconf
-sudo named-checkzone ocp.home.arpa /etc/bind/db.ocp.home.arpa
+sudo named-checkzone ocp.lab.example /etc/bind/db.ocp.lab.example
 sudo systemctl restart named
-dig @192.168.8.214 api.ocp.home.arpa +short
-dig @192.168.8.214 test.apps.ocp.home.arpa +short
-dig @192.168.8.214 rhcos.mirror.openshift.com +short
+dig @192.0.2.53 api.ocp.lab.example +short
+dig @192.0.2.53 test.apps.ocp.lab.example +short
+dig @192.0.2.53 rhcos.mirror.openshift.com +short
 ```
 
 During installation, Ubuntu's `systemd-resolved` sometimes failed to route public DNS queries. Temporary fix (interface `ens33`):
 
 ```bash
-sudo resolvectl dns ens33 192.168.8.214
+sudo resolvectl dns ens33 192.0.2.53
 sudo resolvectl domain ens33 '~.'
 sudo resolvectl default-route ens33 yes
 resolvectl query rhcos.mirror.openshift.com
@@ -97,7 +99,7 @@ Persist through your Ubuntu network configuration if required. Windows users mus
 
 ## 3. vCenter/ESXi and storage preparation
 
-1. Check ESXi/vCenter reachability, datastore capacity, VM Network port group, and vCenter permission scope.
+1. Check ESXi/vCenter reachability, datastore capacity, LAB-NET port group, and vCenter permission scope.
 2. Download the verified vCenter CA certificate from the vCenter `https://<vcenter>/certs/download.zip` endpoint and add the appropriate trusted certificate to the installer host's OS trust store. Certificate hostname SAN must match the vCenter name/IP used by installer.
 3. Reserve `.60` through `.65` as planned and ensure no DHCP conflict.
 4. Choose thin disks: our first thick-provisioned install nearly exhausted the VMFS datastore (approximately 563 GB down to 2.83 GB free).
@@ -133,29 +135,29 @@ controlPlane:
 platform:
   vsphere:
     diskType: thin
-    apiVIPs: [192.168.8.60]
-    ingressVIPs: [192.168.8.61]
+    apiVIPs: [192.0.2.60]
+    ingressVIPs: [192.0.2.61]
     hosts:
     - role: bootstrap
       networkDevice:
-        ipAddrs: [192.168.8.62/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.62/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.63/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.63/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.64/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.64/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
     - role: control-plane
       networkDevice:
-        ipAddrs: [192.168.8.65/24]
-        gateway: 192.168.8.1
-        nameservers: [192.168.8.214]
+        ipAddrs: [192.0.2.65/24]
+        gateway: 192.0.2.1
+        nameservers: [192.0.2.53]
 ```
 
 The above is **not** valid standalone install-config; vSphere generated configuration, credentials and pull-secret information are omitted intentionally.
@@ -183,9 +185,9 @@ oc get infrastructure cluster -o yaml
 Observed nodes:
 
 ```text
-ocp-76lch-master-0  Ready  control-plane,master,worker  v1.35.8
-ocp-76lch-master-1  Ready  control-plane,master,worker  v1.35.8
-ocp-76lch-master-2  Ready  control-plane,master,worker  v1.35.8
+ocp-lab-master-0  Ready  control-plane,master,worker  v1.35.8
+ocp-lab-master-1  Ready  control-plane,master,worker  v1.35.8
+ocp-lab-master-2  Ready  control-plane,master,worker  v1.35.8
 ```
 
 The authentication, ingress and console cluster operators reported `Available=True`, `Progressing=False`, `Degraded=False` and version `4.22.18`.
@@ -201,8 +203,8 @@ sequenceDiagram
   participant R as OpenShift Router/Ingress VIP .61
   participant S as Kubernetes Service
   participant P as Application Pod
-  B->>D: Lookup app.apps.ocp.home.arpa
-  D-->>B: 192.168.8.61
+  B->>D: Lookup app.apps.ocp.lab.example
+  D-->>B: 192.0.2.61
   B->>R: HTTP/HTTPS request + Host header
   R->>S: Route targets Service
   S->>P: Forward to targetPort 8080
@@ -218,7 +220,7 @@ oc get ingresscontroller -n openshift-ingress-operator
 oc get route -A
 oc get service -A
 oc get endpoints -n demo
-nslookup api.ocp.home.arpa 192.168.8.214
+nslookup api.ocp.lab.example 192.0.2.53
 ```
 
 ## 6. Storage and image registry
@@ -229,7 +231,7 @@ Observed default StorageClass:
 thin-csi (default)   csi.vsphere.vmware.com   Delete   WaitForFirstConsumer
 ```
 
-Storage policy parameter: `openshift-storage-policy-ocp-76lch`. The registry initially was configured with `managementState: Removed`, which prevented build output to an integrated ImageStream.
+Storage policy parameter: `openshift-storage-policy-ocp-lab`. The registry initially was configured with `managementState: Removed`, which prevented build output to an integrated ImageStream.
 
 Registry PVC example used in the exercise:
 
@@ -262,7 +264,7 @@ Status caveat: the walkthrough did **not capture conclusive Ready/Bound confirma
 
 ## 7. NGINX Deployment (project demo)
 
-**Container:** `nginxinc/nginx-unprivileged:stable` (a `nginx/1.30.6` Server response was observed). **Listening port:** 8080. **Service port:** 80. **Route:** under `*.apps.ocp.home.arpa`.
+**Container:** `nginxinc/nginx-unprivileged:stable` (a `nginx/1.30.6` Server response was observed). **Listening port:** 8080. **Service port:** 80. **Route:** under `*.apps.ocp.lab.example`.
 
 A reproducible, sanitized specification:
 
