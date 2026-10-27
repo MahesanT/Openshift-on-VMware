@@ -186,7 +186,7 @@ footer{padding:34px 0 50px;border-top:1px solid var(--line);color:#789487;font-s
       <div>
         <div class="eyebrow"><span class="dot"></span> Hands-on platform engineering lab</div>
         <h1>OpenShift <span>on VMware</span></h1>
-        <p class="lead">An end-to-end Red Hat OpenShift Container Platform 4.22.18 deployment on VMware vSphere — built with IPI, RHCOS, BIND9 DNS, vSphere CSI, OpenShift Routes and real failure-driven troubleshooting.</p>
+        <p class="lead">An end-to-end Red Hat OpenShift Container Platform 4.22.18 deployment on VMware vSphere — built with IPI, RHCOS, BIND9 DNS, vSphere CSI, OpenShift Routes and real failure-driven troubleshooting.</p>\n        <div class="eyebrow" style="margin-top:14px"><span class="dot"></span> Documentation values are anonymized • TEST-NET / .example</div>
         <div class="actions">
           <a class="btn primary" href="#architecture">Explore the lab ↓</a>
           <a class="btn secondary" href="https://github.com/MahesanT/Openshift-on-VMware/blob/main/README.md">Full runbook ↗</a>
@@ -196,9 +196,9 @@ footer{padding:34px 0 50px;border-top:1px solid var(--line);color:#789487;font-s
         <div class="termbar"><i></i><i></i><i></i></div>
         <pre><span class="prompt">$</span> oc get nodes
 NAME                  STATUS   ROLES
-ocp-76lch-master-0    <span class="ok">Ready</span>    control-plane,master,worker
-ocp-76lch-master-1    <span class="ok">Ready</span>    control-plane,master,worker
-ocp-76lch-master-2    <span class="ok">Ready</span>    control-plane,master,worker
+ocp-lab-master-0    <span class="ok">Ready</span>    control-plane,master,worker
+ocp-lab-master-1    <span class="ok">Ready</span>    control-plane,master,worker
+ocp-lab-master-2    <span class="ok">Ready</span>    control-plane,master,worker
 
 <span class="prompt">$</span> oc get clusterversion
 VERSION
@@ -264,9 +264,9 @@ Server: nginx/1.30.6</pre>
       <div class="step">
         <div class="stepnum">2</div>
         <div class="stepbody"><h3>Build authoritative lab DNS</h3><p>BIND9 was configured for the API, internal API and wildcard application records, with forwarding for external Red Hat registry and RHCOS lookups.</p>
-          <div class="codebox"><button class="copy">Copy</button><pre class="code">dig @192.168.8.214 api.ocp.home.arpa +short
-dig @192.168.8.214 api-int.ocp.home.arpa +short
-dig @192.168.8.214 sample.apps.ocp.home.arpa +short</pre></div>
+          <div class="codebox"><button class="copy">Copy</button><pre class="code">dig @192.0.2.53 api.ocp.lab.example +short
+dig @192.0.2.53 api-int.ocp.lab.example +short
+dig @192.0.2.53 sample.apps.ocp.lab.example +short</pre></div>
         </div>
       </div>
       <div class="step">
