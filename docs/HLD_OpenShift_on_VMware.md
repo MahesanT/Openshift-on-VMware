@@ -90,6 +90,8 @@ flowchart TB
 - Validated through an HTTP 200 response and NGINX response header.
 
 ### Sock Shop microservices
+
+For deployment sequence, fixes and validation evidence, see the [Sock Shop deployment runbook](Sock_Shop_Deployment_Runbook.md).
 - Deployed to namespace `sock-shop` from the OpenShift-adapted Sock Shop demo manifests.
 - **13 Deployments**: `carts`, `carts-db`, `catalogue`, `catalogue-db`, `front-end`, `orders`, `orders-db`, `payment`, `queue-master`, `rabbitmq`, `shipping`, `user`, `user-db`.
 - The user confirmed all deployments running after resolving initial failures. End-to-end checkout behavior was **not independently verified**.
