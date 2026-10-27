@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07120f">
+<title>OpenShift 4.22 on VMware vSphere | MahesanT</title>
+<meta name="description" content="Hands-on Red Hat OpenShift 4.22.18 on VMware vSphere: compact 3-node IPI deployment, BIND9 DNS, vSphere CSI, Routes, NGINX and real troubleshooting.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06100d;
+  --bg2:#0a1712;
+  --panel:rgba(15,34,26,.82);
+  --panel2:#10271d;
+  --text:#edf8f2;
+  --muted:#a1b9ad;
+  --line:rgba(154,208,179,.17);
+  --green:#62e6a7;
+  --green2:#29bd7d;
+  --lime:#b9f76b;
+  --cyan:#68d9df;
+  --amber:#f7c765;
+  --red:#ff7e83;
+  --code:#04100c;
+  --shadow:0 30px 80px rgba(0,0,0,.36);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  color:var(--text);
+  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  line-height:1.65;
+  background:
+    radial-gradient(circle at 10% 0%,rgba(38,190,120,.14),transparent 34%),
+    radial-gradient(circle at 90% 12%,rgba(95,220,220,.10),transparent 30%),
+    linear-gradient(180deg,#040b09 0%,#07130f 35%,#07110e 100%);
+}
+body:before{
+  content:"";
+  position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.22;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(to bottom,black,transparent 82%);
+}
+a{color:#8ff0bd;text-decoration:none}
+a:hover{color:#c7ffe0}
+.shell{max-width:1220px;margin:auto;padding:0 24px}
+header{
+  position:sticky;top:0;z-index:50;
+  backdrop-filter:blur(18px);
+  background:rgba(4,12,9,.78);
+  border-bottom:1px solid var(--line);
+}
+.nav{min-height:66px;display:flex;align-items:center;gap:22px}
+.brand{display:flex;align-items:center;gap:11px;margin-right:auto;font-weight:800;letter-spacing:-.02em;color:#fff}
+.logo{
+  width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--green),var(--cyan));
+  color:#032015;font-weight:900;box-shadow:0 0 35px rgba(98,230,167,.26)
+}
+.nav a{font-size:13px;color:#bdd0c6;font-weight:600}
+.nav .repo{border:1px solid var(--line);padding:8px 12px;border-radius:10px;color:#eafff2}
+.hero{padding:90px 0 56px;position:relative}
+.hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center}
+.eyebrow{
+  display:inline-flex;gap:9px;align-items:center;padding:7px 11px;border-radius:999px;
+  border:1px solid rgba(98,230,167,.30);background:rgba(98,230,167,.07);
+  color:#b9f7d5;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 14px var(--green)}
+h1{font-size:clamp(46px,7vw,84px);line-height:.98;letter-spacing:-.055em;margin:22px 0 20px}
+h1 span{background:linear-gradient(95deg,var(--green),var(--cyan),var(--lime));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:19px;color:#c3d7cc;max-width:760px;margin:0 0 28px}
+.actions{display:flex;gap:12px;flex-wrap:wrap}
+.btn{padding:11px 16px;border-radius:11px;font-weight:700;font-size:14px;border:1px solid var(--line);display:inline-flex;align-items:center;gap:8px}
+.btn.primary{background:linear-gradient(135deg,#36ce8b,#5de3b0);color:#032317;border:0;box-shadow:0 14px 40px rgba(55,210,143,.18)}
+.btn.secondary{background:rgba(255,255,255,.035);color:#eafff2}
+.terminal{
+  border:1px solid rgba(124,231,178,.18);border-radius:18px;overflow:hidden;
+  background:rgba(3,11,8,.88);box-shadow:var(--shadow);transform:perspective(1000px) rotateY(-2deg) rotateX(1deg)
+}
+.termbar{height:42px;background:#0d1c16;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:7px}
+.termbar i{width:9px;height:9px;border-radius:50%;display:block}.termbar i:nth-child(1){background:#ff6b6b}.termbar i:nth-child(2){background:#ffd166}.termbar i:nth-child(3){background:#62e6a7}
+.terminal pre{margin:0;padding:22px;min-height:292px;white-space:pre-wrap;color:#bdf9d5;font:13px/1.75 "JetBrains Mono",monospace}
+.prompt{color:#6dddf0}.ok{color:var(--green)}.warn{color:var(--amber)}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:44px}
+.metric{padding:18px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.025)}
+.metric b{display:block;font-size:26px;letter-spacing:-.03em;color:#fff}.metric span{font-size:12px;color:var(--muted)}
+section{padding:68px 0;border-top:1px solid var(--line)}
+.section-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);font-weight:800}
+h2{font-size:clamp(30px,4vw,44px);line-height:1.08;letter-spacing:-.035em;margin:10px 0 14px}
+h3{font-size:19px;letter-spacing:-.02em;margin:0 0 8px}
+.sub{max-width:790px;color:var(--muted);margin:0 0 28px}
+.grid{display:grid;gap:16px}.grid.two{grid-template-columns:repeat(2,1fr)}.grid.three{grid-template-columns:repeat(3,1fr)}
+.card{
+  border:1px solid var(--line);border-radius:17px;padding:22px;
+  background:linear-gradient(180deg,rgba(18,42,31,.75),rgba(9,24,18,.88));
+  box-shadow:0 16px 45px rgba(0,0,0,.10)
+}
+.card p,.card li{color:#bfd1c7}.card .mini{font-size:12px;color:#7f9f90;text-transform:uppercase;font-weight:800;letter-spacing:.08em}
+.icon{
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;margin-bottom:14px;
+  background:rgba(98,230,167,.10);border:1px solid rgba(98,230,167,.18);font-size:18px
+}
+.arch{
+  margin-top:28px;border:1px solid var(--line);border-radius:20px;padding:25px;
+  background:linear-gradient(180deg,rgba(3,17,12,.88),rgba(9,27,19,.82));overflow:hidden
+}
+.arch-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:center}
+.node{padding:16px;border-radius:13px;text-align:center;border:1px solid var(--line);background:#0c2018}
+.node strong{display:block;color:#fff}.node small{color:var(--muted)}
+.arrow{text-align:center;color:var(--green);font-size:24px;padding:10px}
+.flow{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:20px}
+.flow span{padding:8px 11px;border-radius:9px;background:#102a1e;border:1px solid var(--line);font:12px "JetBrains Mono",monospace;color:#c8f5da}
+.flow b{color:#5de3a8}
+.timeline{position:relative;margin-top:30px}
+.timeline:before{content:"";position:absolute;left:20px;top:10px;bottom:10px;width:2px;background:linear-gradient(var(--green),rgba(98,230,167,.05))}
+.step{display:grid;grid-template-columns:48px 1fr;gap:17px;margin:0 0 24px;position:relative}
+.stepnum{width:42px;height:42px;border-radius:50%;background:#0b2b1d;border:1px solid rgba(98,230,167,.3);display:grid;place-items:center;color:#a8f4ca;font-weight:800}
+.stepbody{padding:4px 0 10px}.stepbody p{margin:5px 0;color:#b8cec2}
+.codebox{position:relative;margin-top:14px}
+pre.code{
+  margin:0;background:var(--code);border:1px solid rgba(120,220,170,.16);border-radius:13px;padding:17px;
+  overflow:auto;color:#c7f9da;font:12.5px/1.7 "JetBrains Mono",monospace
+}
+.copy{
+  position:absolute;right:9px;top:9px;border:1px solid var(--line);border-radius:8px;padding:6px 9px;
+  background:#0d2118;color:#9fc6b1;font-size:11px;cursor:pointer
+}
+.copy:hover{color:#fff}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:620px;background:rgba(5,17,12,.55)}
+th,td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#9edbb9;background:#0c2118}
+td{color:#c0d4c8;font-size:14px}
+.tag{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--line)}
+.tag.good{color:#8ff0bd;background:rgba(98,230,167,.07)}
+.tag.issue{color:#ffd889;background:rgba(247,199,101,.07)}
+.trouble{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.issue{position:relative;overflow:hidden}
+.issue:after{content:"";position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;background:rgba(247,199,101,.06)}
+.issue h3{display:flex;gap:8px;align-items:center}.issue h3:before{content:"!";width:22px;height:22px;border-radius:7px;background:rgba(247,199,101,.12);color:var(--amber);display:grid;place-items:center;font-size:12px}
+.result{
+  border:1px solid rgba(98,230,167,.24);border-radius:18px;padding:28px;margin-top:28px;
+  background:linear-gradient(135deg,rgba(42,190,125,.09),rgba(104,217,223,.05))
+}
+.result strong{font-size:20px}
+.docs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px}
+.doc{display:block;border:1px solid var(--line);border-radius:14px;padding:18px;background:rgba(255,255,255,.02)}
+.doc b{display:block;color:#fff;margin-bottom:5px}.doc span{font-size:13px;color:var(--muted)}
+footer{padding:34px 0 50px;border-top:1px solid var(--line);color:#789487;font-size:13px}
+.reveal{opacity:0;transform:translateY(14px);transition:.55s ease}.reveal.visible{opacity:1;transform:none}
+@media(max-width:900px){
+  .hero-grid,.grid.two,.grid.three,.trouble,.docs{grid-template-columns:1fr}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .nav a:not(.repo){display:none}
+  .terminal{transform:none}
+  .arch-row{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .shell{padding:0 16px}.hero{padding-top:62px}.metrics{grid-template-columns:1fr 1fr}
+  h1{font-size:46px}.lead{font-size:17px}.nav .repo{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="shell nav">
+    <a class="brand" href="#"><span class="logo">O</span> MahesanT / OpenShift</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#build">Build</a>
+    <a href="#troubleshooting">Troubleshooting</a>
+    <a href="#validation">Validation</a>
+    <a class="repo" href="https://github.com/MahesanT/Openshift-on-VMware">GitHub Repo ↗</a>
+  </div>
+</header>
+
+<main>
+<section class="hero" style="border-top:0">
+  <div class="shell">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow"><span class="dot"></span> Hands-on platform engineering lab</div>
+        <h1>OpenShift <span>on VMware</span></h1>
+        <p class="lead">An end-to-end Red Hat OpenShift Container Platform 4.22.18 deployment on VMware vSphere — built with IPI, RHCOS, BIND9 DNS, vSphere CSI, OpenShift Routes and real failure-driven troubleshooting.</p>
+        <div class="actions">
+          <a class="btn primary" href="#architecture">Explore the lab ↓</a>
+          <a class="btn secondary" href="https://github.com/MahesanT/Openshift-on-VMware/blob/main/README.md">Full runbook ↗</a>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="termbar"><i></i><i></i><i></i></div>
+        <pre><span class="prompt">$</span> oc get nodes
+NAME                  STATUS   ROLES
+ocp-76lch-master-0    <span class="ok">Ready</span>    control-plane,master,worker
+ocp-76lch-master-1    <span class="ok">Ready</span>    control-plane,master,worker
+ocp-76lch-master-2    <span class="ok">Ready</span>    control-plane,master,worker
+
+<span class="prompt">$</span> oc get clusterversion
+VERSION
+<span class="ok">4.22.18</span>
+
+<span class="prompt">$</span> curl -I http://nginx-route...
+HTTP/1.1 <span class="ok">200 OK</span>
+Server: nginx/1.30.6</pre>
+      </div>
+    </div>
+
+    <div class="metrics reveal">
+      <div class="metric"><b>3</b><span>RHCOS control-plane + worker nodes</span></div>
+      <div class="metric"><b>4.22.18</b><span>OpenShift release verified</span></div>
+      <div class="metric"><b>39m 43s</b><span>Successful IPI install</span></div>
+      <div class="metric"><b>HTTP 200</b><span>NGINX Route validation</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="shell reveal">
+    <div class="section-kicker">01 / Architecture</div>
+    <h2>Compact cluster. Real platform components.</h2>
+    <p class="sub">The lab uses three schedulable RHCOS control-plane nodes on VMware vSphere. BIND9 provides the required cluster DNS records, vSphere CSI provides dynamic storage integration, and OpenShift ingress exposes applications through Routes.</p>
+
+    <div class="grid three">
+      <div class="card"><div class="icon">☁</div><div class="mini">Platform</div><h3>VMware vSphere</h3><p>Installer-provisioned infrastructure on ESXi/vCenter using thin-provisioned virtual disks after correcting an initial datastore-capacity issue.</p></div>
+      <div class="card"><div class="icon">◆</div><div class="mini">Cluster</div><h3>OpenShift 4.22.18</h3><p>Three RHCOS masters with application scheduling enabled. Kubernetes v1.35.8 was observed on the deployed nodes.</p></div>
+      <div class="card"><div class="icon">↗</div><div class="mini">Application path</div><h3>Route → Service → Pod</h3><p>An unprivileged NGINX workload is exposed through an OpenShift Route and validated end-to-end with HTTP 200.</p></div>
+    </div>
+
+    <div class="arch">
+      <div class="arch-row">
+        <div class="node"><strong>Clients</strong><small>Windows / Ubuntu</small></div>
+        <div class="node"><strong>BIND9 DNS</strong><small>api • api-int • *.apps</small></div>
+        <div class="node"><strong>VMware vCenter</strong><small>vSphere / ESXi 8</small></div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="arch-row">
+        <div class="node"><strong>master-0</strong><small>control-plane + worker</small></div>
+        <div class="node"><strong>master-1</strong><small>control-plane + worker</small></div>
+        <div class="node"><strong>master-2</strong><small>control-plane + worker</small></div>
+      </div>
+      <div class="flow">
+        <span>OVN-Kubernetes</span><b>→</b><span>vSphere CSI</span><b>→</b><span>Ingress</span><b>→</b><span>Service</span><b>→</b><span>NGINX Pod</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="build">
+  <div class="shell reveal">
+    <div class="section-kicker">02 / Build journey</div>
+    <h2>From prerequisites to a healthy cluster.</h2>
+    <p class="sub">The deployment was built using OpenShift installer-provisioned infrastructure (IPI) rather than manually creating RHCOS virtual machines.</p>
+
+    <div class="timeline">
+      <div class="step">
+        <div class="stepnum">1</div>
+        <div class="stepbody"><h3>Prepare vSphere and the installer host</h3><p>Validated compute, datastore, network access and vCenter trust. The vCenter VMCA root certificate was imported into Ubuntu after the installer initially failed TLS verification.</p></div>
+      </div>
+      <div class="step">
+        <div class="stepnum">2</div>
+        <div class="stepbody"><h3>Build authoritative lab DNS</h3><p>BIND9 was configured for the API, internal API and wildcard application records, with forwarding for external Red Hat registry and RHCOS lookups.</p>
+          <div class="codebox"><button class="copy">Copy</button><pre class="code">dig @192.168.8.214 api.ocp.home.arpa +short
+dig @192.168.8.214 api-int.ocp.home.arpa +short
+dig @192.168.8.214 sample.apps.ocp.home.arpa +short</pre></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="stepnum">3</div>
+        <div class="stepbody"><h3>Configure a compact IPI topology</h3><p>Three control-plane replicas, zero dedicated workers, static networking and thin virtual disks were defined. A schema-placement issue with the OS disk field was corrected before deployment.</p></div>
+      </div>
+      <div class="step">
+        <div class="stepnum">4</div>
+        <div class="stepbody"><h3>Run automated provisioning</h3><p>The installer imported RHCOS, created bootstrap and master VMs, initialized the control plane, removed bootstrap and waited for cluster operators to stabilize.</p>
+          <div class="codebox"><button class="copy">Copy</button><pre class="code">./openshift-install create cluster --dir ~/ocp-install --log-level=info
+
+export KUBECONFIG=~/ocp-install/auth/kubeconfig
+oc get nodes -o wide
+oc get clusteroperators
+oc get clusterversion</pre></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Installer stage</th><th>Observed duration</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Infrastructure pre-provisioning</td><td>28 sec</td><td><span class="tag good">Completed</span></td></tr>
+          <tr><td>Network infrastructure</td><td>39 sec</td><td><span class="tag good">Completed</span></td></tr>
+          <tr><td>Machine provisioning</td><td>5m 15s</td><td><span class="tag good">Completed</span></td></tr>
+          <tr><td>Bootstrap complete</td><td>21m 19s</td><td><span class="tag good">Completed</span></td></tr>
+          <tr><td>Cluster operators available</td><td>8m 10s</td><td><span class="tag good">Completed</span></td></tr>
+          <tr><td>Cluster operators stable</td><td>3m 43s</td><td><span class="tag good">Completed</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="storage">
+  <div class="shell reveal">
+    <div class="section-kicker">03 / Storage & platform integration</div>
+    <h2>OpenShift meets vSphere CSI.</h2>
+    <p class="sub">The cluster exposed the vSphere CSI provisioner through the default thin-csi StorageClass. Registry storage was explored as a lab exercise, while the public project intentionally avoids claiming final registry PVC success without captured verification output.</p>
+    <div class="grid two">
+      <div class="card">
+        <div class="mini">StorageClass</div><h3>thin-csi</h3>
+        <p>Provisioner: <code>csi.vsphere.vmware.com</code><br>Binding: <code>WaitForFirstConsumer</code></p>
+        <div class="codebox"><button class="copy">Copy</button><pre class="code">oc get sc
+oc get csidrivers
+oc get pvc -A
+oc get co storage image-registry</pre></div>
+      </div>
+      <div class="card">
+        <div class="mini">Design lesson</div><h3>Capacity matters before automation</h3>
+        <p>The first provisioning attempt used thick virtual disks and reduced the selected datastore from 563 GB free to roughly 2.83 GB. The partial install was destroyed and rebuilt with thin disks.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="troubleshooting">
+  <div class="shell reveal">
+    <div class="section-kicker">04 / Troubleshooting</div>
+    <h2>The failures were the useful part.</h2>
+    <p class="sub">The project records what broke, how it was diagnosed and what changed. These are the scenarios that turned the lab into a platform-engineering exercise rather than a simple install walkthrough.</p>
+
+    <div class="trouble">
+      <div class="card issue"><h3>vCenter certificate trust</h3><p><b>Symptom:</b> x509 unknown authority.<br><b>Fix:</b> imported the verified vCenter VMCA root into the Ubuntu trust store instead of disabling installer verification.</p></div>
+      <div class="card issue"><h3>External DNS failure</h3><p><b>Symptom:</b> RHCOS mirror resolution failed while internal records worked.<br><b>Fix:</b> configured BIND9 forwarders and corrected systemd-resolved DNS routing.</p></div>
+      <div class="card issue"><h3>Datastore nearly full</h3><p><b>Symptom:</b> free capacity collapsed during provisioning.<br><b>Fix:</b> stopped the partial deployment, used installer destroy state, and redeployed with thin disks.</p></div>
+      <div class="card issue"><h3>NGINX CrashLoopBackOff</h3><p><b>Symptom:</b> permission denied creating NGINX cache paths under OpenShift SCC.<br><b>Fix:</b> moved to the unprivileged NGINX image rather than weakening SCC security.</p></div>
+      <div class="card issue"><h3>Deployment image reverted</h3><p><b>Symptom:</b> a manual image change was overwritten.<br><b>Fix:</b> discovered an ImageStream trigger selecting the old image, removed the trigger and updated the Deployment.</p></div>
+      <div class="card issue"><h3>Service reached the wrong port</h3><p><b>Symptom:</b> the unprivileged image listened on 8080 while the Service targeted 80.<br><b>Fix:</b> corrected targetPort and replaced the ReplicaSet hash selector with a stable Deployment-level selector.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="application">
+  <div class="shell reveal">
+    <div class="section-kicker">05 / Application validation</div>
+    <h2>Pod → Service → Route → client.</h2>
+    <p class="sub">The final NGINX workload used an image compatible with OpenShift's restricted non-root security model and was exposed through an OpenShift Route.</p>
+    <div class="grid two">
+      <div class="card">
+        <div class="mini">Workload correction</div><h3>Use a non-root compatible image</h3>
+        <div class="codebox"><button class="copy">Copy</button><pre class="code">oc annotate deployment/demo-pod image.openshift.io/triggers- -n demo
+
+oc set image deployment/demo-pod   nginx=nginxinc/nginx-unprivileged:stable -n demo
+
+oc rollout status deployment/demo-pod -n demo</pre></div>
+      </div>
+      <div class="card">
+        <div class="mini">Network validation</div><h3>Expose and test the Route</h3>
+        <div class="codebox"><button class="copy">Copy</button><pre class="code">oc expose svc/nginx-svc --name=nginx-route -n demo
+oc get svc,route -n demo
+oc get endpoints nginx-svc -n demo
+
+curl -I http://&lt;route-host&gt;
+# HTTP/1.1 200 OK</pre></div>
+      </div>
+    </div>
+    <div class="result"><strong><span class="ok">✓</span> Verified result:</strong> the deployed application returned <b>HTTP/1.1 200 OK</b> with <b>nginx/1.30.6</b>, validating the application path through OpenShift ingress.</div>
+  </div>
+</section>
+
+<section id="validation">
+  <div class="shell reveal">
+    <div class="section-kicker">06 / Day-2 validation</div>
+    <h2>Commands I keep close.</h2>
+    <p class="sub">A compact operational checklist for cluster, workload, storage and troubleshooting verification.</p>
+    <div class="codebox"><button class="copy">Copy</button><pre class="code">oc get nodes -o wide
+oc get clusterversion
+oc get co
+oc get pods -A
+oc get events -A --sort-by='.lastTimestamp'
+oc get sc
+oc get pvc -A
+oc get deployment,rs,pod,svc,route -n demo
+oc describe pod &lt;POD_NAME&gt; -n demo
+oc logs deployment/demo-pod -n demo</pre></div>
+  </div>
+</section>
+
+<section id="docs">
+  <div class="shell reveal">
+    <div class="section-kicker">07 / Project documentation</div>
+    <h2>Built as a portfolio, documented as a runbook.</h2>
+    <p class="sub">The public repository contains the detailed walkthrough plus architecture design documents. Secrets such as pull secrets, kubeconfig, kubeadmin passwords and vCenter credentials are intentionally excluded.</p>
+    <div class="docs">
+      <a class="doc" href="https://github.com/MahesanT/Openshift-on-VMware/blob/main/README.md"><b>End-to-end runbook →</b><span>Installation, DNS, CSI, applications and troubleshooting.</span></a>
+      <a class="doc" href="https://github.com/MahesanT/Openshift-on-VMware/blob/main/docs/HLD_OpenShift_on_VMware.md"><b>High-Level Design →</b><span>Architecture, components, flows, security and availability.</span></a>
+      <a class="doc" href="https://github.com/MahesanT/Openshift-on-VMware/blob/main/docs/LLD_OpenShift_on_VMware.md"><b>Low-Level Design →</b><span>Inventory, DNS, storage, settings and verification commands.</span></a>
+    </div>
+    <div class="result" style="margin-top:18px">
+      <strong>Scope note:</strong> This page represents the actual three-node compact home lab. The six-node enterprise variant in the repository is an extension/design example, not a claim that it was deployed.
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="shell">MahesanT • OpenShift 4.22.18 on VMware vSphere • Home lab / portfolio project • Secrets intentionally excluded</div>
+</footer>
+
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    var pre=btn.nextElementSibling;
+    navigator.clipboard.writeText(pre.innerText).then(function(){
+      var old=btn.textContent;btn.textContent='Copied ✓';setTimeout(function(){btn.textContent=old},1200);
+    });
+  });
+});
+var io=new IntersectionObserver(function(entries){
+  entries.forEach(function(e){if(e.isIntersecting)e.target.classList.add('visible')});
+},{threshold:.08});
+document.querySelectorAll('.reveal').forEach(function(el){io.observe(el)});
+</script>
+</body>
+</html>
