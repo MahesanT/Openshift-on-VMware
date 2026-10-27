@@ -174,6 +174,7 @@ footer{padding:34px 0 50px;border-top:1px solid var(--line);color:#789487;font-s
     <a href="#architecture">Architecture</a>
     <a href="#build">Build</a>
     <a href="#troubleshooting">Troubleshooting</a>
+    <a href="#sockshop">Sock Shop</a>
     <a href="#validation">Validation</a>
     <a class="repo" href="https://github.com/MahesanT/Openshift-on-VMware">GitHub Repo ↗</a>
   </div>
@@ -214,7 +215,7 @@ Server: nginx/1.30.6</pre>
       <div class="metric"><b>3</b><span>RHCOS control-plane + worker nodes</span></div>
       <div class="metric"><b>4.22.18</b><span>OpenShift release verified</span></div>
       <div class="metric"><b>39m 43s</b><span>Successful IPI install</span></div>
-      <div class="metric"><b>HTTP 200</b><span>NGINX Route validation</span></div>
+      <div class="metric"><b>13</b><span>Sock Shop deployments running</span></div>
     </div>
   </div>
 </section>
@@ -228,7 +229,7 @@ Server: nginx/1.30.6</pre>
     <div class="grid three">
       <div class="card"><div class="icon">☁</div><div class="mini">Platform</div><h3>VMware vSphere</h3><p>Installer-provisioned infrastructure on ESXi/vCenter using thin-provisioned virtual disks after correcting an initial datastore-capacity issue.</p></div>
       <div class="card"><div class="icon">◆</div><div class="mini">Cluster</div><h3>OpenShift 4.22.18</h3><p>Three RHCOS masters with application scheduling enabled. Kubernetes v1.35.8 was observed on the deployed nodes.</p></div>
-      <div class="card"><div class="icon">↗</div><div class="mini">Application path</div><h3>Route → Service → Pod</h3><p>An unprivileged NGINX workload is exposed through an OpenShift Route and validated end-to-end with HTTP 200.</p></div>
+      <div class="card"><div class="icon">↗</div><div class="mini">Applications</div><h3>NGINX + Sock Shop</h3><p>Validated an unprivileged NGINX Route with HTTP 200 and deployed the 13-service Sock Shop microservices demo after adapting legacy services for restricted OpenShift execution.</p></div>
     </div>
 
     <div class="arch">
@@ -244,7 +245,7 @@ Server: nginx/1.30.6</pre>
         <div class="node"><strong>master-2</strong><small>control-plane + worker</small></div>
       </div>
       <div class="flow">
-        <span>OVN-Kubernetes</span><b>→</b><span>vSphere CSI</span><b>→</b><span>Ingress</span><b>→</b><span>Service</span><b>→</b><span>NGINX Pod</span>
+        <span>OVN-Kubernetes</span><b>→</b><span>vSphere CSI</span><b>→</b><span>Ingress</span><b>→</b><span>NGINX</span><b>+</b><span>Sock Shop</span>
       </div>
     </div>
   </div>
@@ -369,9 +370,54 @@ curl -I http://&lt;route-host&gt;
   </div>
 </section>
 
+<section id="sockshop">
+  <div class="shell reveal">
+    <div class="section-kicker">06 / Microservices application</div>
+    <h2>Sock Shop on OpenShift.</h2>
+    <p class="sub">As a second application exercise, I deployed the Sock Shop microservices demo into the <code>sock-shop</code> namespace. All <strong>13 Deployments</strong> were confirmed running after adapting several legacy services to OpenShift's restricted security model.</p>
+
+    <div class="grid three">
+      <div class="card">
+        <div class="icon">🧦</div><div class="mini">Application</div><h3>13 microservices</h3>
+        <p>carts, catalogue, orders, payment, shipping, user, front-end, RabbitMQ and their supporting database services.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🔒</div><div class="mini">Security</div><h3>Restricted execution</h3>
+        <p>Legacy services expecting privileged ports or executable capabilities had to be adapted rather than bypassing OpenShift SCC protections.</p>
+      </div>
+      <div class="card">
+        <div class="icon">↗</div><div class="mini">Exposure</div><h3>Front-end Route</h3>
+        <p>The Sock Shop front-end Service can be exposed through an OpenShift Route after validating Pods, Services and endpoints.</p>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top:16px">
+      <div class="card">
+        <div class="mini">Java services</div><h3>Move application listeners to 8080</h3>
+        <div class="codebox"><button class="copy">Copy</button><pre class="code">for app in carts orders queue-master shipping; do
+  oc set env deployment/$app SERVER_PORT=8080 -n sock-shop
+done
+
+oc get deployments -n sock-shop
+oc get pods -n sock-shop</pre></div>
+      </div>
+      <div class="card">
+        <div class="mini">Front-end access</div><h3>Expose the microservices UI</h3>
+        <div class="codebox"><button class="copy">Copy</button><pre class="code">oc expose service/front-end -n sock-shop
+oc get route front-end -n sock-shop
+oc get svc,endpoints -n sock-shop</pre></div>
+      </div>
+    </div>
+
+    <div class="result">
+      <strong><span class="ok">✓</span> Verified result:</strong> all <b>13 Sock Shop deployments</b> were confirmed running after the OpenShift compatibility fixes. A complete browse/cart/checkout transaction was not recorded, so the portfolio does not claim full transactional validation.
+    </div>
+  </div>
+</section>
+
 <section id="validation">
   <div class="shell reveal">
-    <div class="section-kicker">06 / Day-2 validation</div>
+    <div class="section-kicker">07 / Day-2 validation</div>
     <h2>Commands I keep close.</h2>
     <p class="sub">A compact operational checklist for cluster, workload, storage and troubleshooting verification.</p>
     <div class="codebox"><button class="copy">Copy</button><pre class="code">oc get nodes -o wide
@@ -389,7 +435,7 @@ oc logs deployment/demo-pod -n demo</pre></div>
 
 <section id="docs">
   <div class="shell reveal">
-    <div class="section-kicker">07 / Project documentation</div>
+    <div class="section-kicker">08 / Project documentation</div>
     <h2>Built as a portfolio, documented as a runbook.</h2>
     <p class="sub">The public repository contains the detailed walkthrough plus architecture design documents. Secrets such as pull secrets, kubeconfig, kubeadmin passwords and vCenter credentials are intentionally excluded.</p>
     <div class="docs">
